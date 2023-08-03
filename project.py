@@ -3,6 +3,8 @@ import os
 import threading
 from tqdm import tqdm
 import struct
+import select
+import sys
 
 SIZE = 1024
 FORMAT = "utf-8"
@@ -363,6 +365,14 @@ BROADCAST_HOST = '127.0.0.1'
 BROADCAST_PORT = 12341
 RUNNING_THREADS = True
 
+def show_feature():
+  print("===== Fitur =====")
+  print("1. Chat")
+  print("2. File")
+  print("3. Exit")
+
+  return input("Masukkan pilihan fitur (angka): ")
+
 def broadcast_client_chat(s):
   global RUNNING_THREADS
   RUNNING_THREADS = True
@@ -371,7 +381,6 @@ def broadcast_client_chat(s):
     global RUNNING_THREADS
 
     while RUNNING_THREADS:
-      print(f"client receive rt var: {RUNNING_THREADS}")
       try:
         message = client_socket.recv(1024).decode('utf-8')
         if message.lower().strip() == 'quit':
@@ -387,18 +396,25 @@ def broadcast_client_chat(s):
   def send_messages(client_socket):
     global RUNNING_THREADS
 
-    while RUNNING_THREADS:
-      print(f"client send rt var: {RUNNING_THREADS}")
-      message = input("Enter your message:\n")
+    show_prompt = True
 
-      client_socket.send(message.encode('utf-8'))
+    while RUNNING_THREADS:
+      if show_prompt:
+        sys.stdout.write("Enter your message:\n")
+        sys.stdout.flush()
+        show_prompt = False
+
+      inputs, _, _ = select.select([sys.stdin], [], [], 0.1)
+      if inputs:
+        message = input()
+        client_socket.send(message.encode('utf-8'))
+        show_prompt = True
 
   receive_thread = threading.Thread(target=receive_messages, args=(s,))
   send_thread = threading.Thread(target=send_messages, args=(s,))
 
   receive_thread.start()
   send_thread.start()
-
 
 def broadcast_server_chat(s):
   global RUNNING_THREADS
@@ -416,21 +432,28 @@ def broadcast_server_chat(s):
   def send_from_server():
     global RUNNING_THREADS
 
+    show_prompt = True
+
     while RUNNING_THREADS:
-      print(f"server send rt var: {RUNNING_THREADS}")
-      message = input("Enter your message:\n")
-      if message.lower().strip() == 'quit':
-        broadcast_chat('quit'.encode('utf-8'))
-        broadcast_pick_feature(s, "server")
-        break
-        
-      broadcast_chat(message.encode('utf-8'))
+        if show_prompt:
+            sys.stdout.write("Enter your message:\n")
+            sys.stdout.flush()
+            show_prompt = False
+
+        inputs, _, _ = select.select([sys.stdin], [], [], 0.1)
+        if inputs:
+            message = input()
+            if message.lower().strip() == 'quit':
+                broadcast_chat('quit'.encode('utf-8'))
+                broadcast_pick_feature(s, "server")
+                break
+            broadcast_chat(message.encode('utf-8'))
+            show_prompt = True
 
   def server_handle_client(client_socket):
     global RUNNING_THREADS
 
     while RUNNING_THREADS:
-      print(f"server receive rt var: {RUNNING_THREADS}")
       try:
         message = client_socket.recv(1024).decode('utf-8')
         if message.lower().strip() == 'quit':
@@ -438,14 +461,13 @@ def broadcast_server_chat(s):
           broadcast_chat('quit'.encode('utf-8'))
           broadcast_pick_feature(s, "server")
           break
-          
+
         print(f"Received: {message}\nEnter your message: ")
         broadcast_chat(message.encode('utf-8'), client_socket)
       except:
         client_socket.close()
         CLIENTS.remove(client_socket)
         break
-
   
   server_send_thread = threading.Thread(target=send_from_server)
   server_send_thread.start()
@@ -456,7 +478,6 @@ def broadcast_server_chat(s):
     print(f"\nConnected with {address}\n\nEnter your message (Masukkan pesan dibawah ini): ")
     client_thread = threading.Thread(target=server_handle_client, args=(client_socket,))
     client_thread.start()
-
 
 def broadcast_pick_feature(s, type):
   global RUNNING_THREADS
