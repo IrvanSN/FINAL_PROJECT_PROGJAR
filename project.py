@@ -9,7 +9,7 @@ import sys
 SIZE = 1024
 FORMAT = "utf-8"
 
-SERVER_IP = "localhost"
+SERVER_IP = "192.168.1.13"
 SERVER_PORT = 23491
 
 def unique_filename(filename):
@@ -388,7 +388,7 @@ def broadcast_client_chat(s):
           broadcast_pick_feature(client_socket, "client")
           break
 
-        print(f"PESAN: {message}\nMasukkan pesan yang ingin dikirim (Ketik pesan dibawah ini): ")
+        print(f"BROADCAST >> {message}\nMasukkan pesan yang ingin dikirim (Ketik pesan dibawah ini): ")
       except:
         print("Connection closed by the server")
         break
@@ -404,10 +404,22 @@ def broadcast_client_chat(s):
         sys.stdout.flush()
         show_prompt = False
 
-      inputs, _, _ = select.select([sys.stdin], [], [], 0.1)
-      if inputs:
-        message = input()
+      if os.name == 'nt': # Windows
+        import msvcrt
+        if msvcrt.kbhit():
+          message = input()
+      else:
+        inputs, _, _ = select.select([sys.stdin], [], [], 0.1)
+        if inputs:
+          message = input()
+
+      if 'message' in locals():
         client_socket.send(message.encode('utf-8'))
+
+        if message.lower().strip() == 'quit':
+          RUNNING_THREADS = False
+          break
+
         show_prompt = True
 
   receive_thread = threading.Thread(target=receive_messages, args=(s,))
@@ -435,20 +447,28 @@ def broadcast_server_chat(s):
     show_prompt = True
 
     while RUNNING_THREADS:
-        if show_prompt:
-            sys.stdout.write("Masukkan pesan yang ingin dikirim (Ketik pesan dibawah ini):\n")
-            sys.stdout.flush()
-            show_prompt = False
+      if show_prompt:
+        sys.stdout.write("Masukkan pesan yang ingin dikirim (Ketik pesan dibawah ini):\n")
+        sys.stdout.flush()
+        show_prompt = False
 
+      if os.name == 'nt': # Windows
+        import msvcrt
+        if msvcrt.kbhit():
+          message = input()
+      else: 
         inputs, _, _ = select.select([sys.stdin], [], [], 0.1)
         if inputs:
-            message = input()
-            if message.lower().strip() == 'quit':
-                broadcast_chat('quit'.encode('utf-8'))
-                broadcast_pick_feature(s, "server")
-                break
-            broadcast_chat(message.encode('utf-8'))
-            show_prompt = True
+          message = input()
+
+      if 'message' in locals() and message.lower().strip() == 'quit':
+        broadcast_chat('quit'.encode('utf-8'))
+        broadcast_pick_feature(s, "server")
+        break
+
+      if 'message' in locals():
+        broadcast_chat(message.encode('utf-8'))
+        show_prompt = True
 
   def server_handle_client(client_socket):
     global RUNNING_THREADS
@@ -462,7 +482,7 @@ def broadcast_server_chat(s):
           broadcast_pick_feature(s, "server")
           break
 
-        print(f"PESAN: {message}\nMasukkan pesan yang ingin dikirim (Ketik pesan dibawah ini): ")
+        print(f"BROADCAST >>: {message}\nMasukkan pesan yang ingin dikirim (Ketik pesan dibawah ini): ")
         broadcast_chat(message.encode('utf-8'), client_socket)
       except:
         client_socket.close()
@@ -489,9 +509,15 @@ def broadcast_pick_feature(s, type):
   if type == "client":
     if selected_feature == "1":
       broadcast_client_chat(s)
+    else:
+      s.close()
   elif type == "server":
     if selected_feature == "1":
       broadcast_server_chat(s)
+    else:
+      s.close()
+  else:
+    s.close()
 
 def broadcast_client_connect():
   client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
