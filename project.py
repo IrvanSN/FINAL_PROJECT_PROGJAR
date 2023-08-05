@@ -3,8 +3,6 @@ import os
 import threading
 from tqdm import tqdm
 import struct
-import select
-import sys
 
 SIZE = 1024
 FORMAT = "utf-8"
@@ -230,7 +228,76 @@ def unicast():
 MULTICAST_ADDR = '224.0.0.1'
 MULTICAST_PORT = 55555
 
-def multicast_sender():
+def multicast_sender_chat(s):
+  message = input("SENDER: ")
+  print("")
+  s.sendto(message.encode(FORMAT), (MULTICAST_ADDR, MULTICAST_PORT))
+  s.close()
+  multicast()
+
+def multicast_receiver_chat(s):
+  print("Menunggu pesan masuk...\n")
+  message, _ = s.recvfrom(SIZE)
+  print("MESSAGE:", message.decode(FORMAT))
+  print("")
+  s.close()
+  multicast()
+
+def multicast_sender_files(s):
+  file_name = input("Masukkan nama file yang akan dikirimkan: ")
+  file_size = os.path.getsize(file_name)
+  print("")
+
+  data = f"{file_name}_{file_size}"
+  s.sendto(data.encode(FORMAT), (MULTICAST_ADDR, MULTICAST_PORT))
+
+  with open(file_name, "rb") as f:
+    bar = tqdm(total=file_size, desc=f"Sending {file_name}", unit="B", unit_scale=True, unit_divisor=1024)
+    bytes_read = 0
+
+    while bytes_read < file_size:
+      data = f.read(SIZE)
+      bytes_read += len(data)
+
+      if not data:
+        break
+
+      s.sendto(data, (MULTICAST_ADDR, MULTICAST_PORT))
+      bar.update(len(data))
+
+  bar.close()
+  print("")
+  s.close()
+  multicast()
+
+def multicast_receiver_files(s):
+  print("Menunggu file masuk..\n")
+  data, _ = s.recvfrom(SIZE)
+  item = data.decode(FORMAT).split("_")
+  file_name = item[0]
+  file_size = int(item[1])
+
+  recv_filename = unique_filename(f"assets/received_{file_name}")
+  with open(recv_filename, "wb") as f:
+    bar = tqdm(total=file_size, desc=f"Receiving {file_name} as {recv_filename}", unit="B", unit_scale=True, unit_divisor=1024)
+    bytes_received = 0
+
+    while bytes_received < file_size:
+      data, _ = s.recvfrom(SIZE)
+      bytes_received += len(data)
+
+      if not data:
+        break
+      
+      f.write(data)
+      bar.update(len(data))
+
+  bar.close()
+  print("")
+  s.close()
+  multicast()
+
+def multicast_sender_connect():
   ttl = 2
 
   sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -238,7 +305,7 @@ def multicast_sender():
 
   return sock
 
-def multicast_receiver():
+def multicast_receiver_connect():
   sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) 
 
   sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -250,113 +317,34 @@ def multicast_receiver():
 
   return sock
 
-def multicast_pick_feature(s, type):
-  selected_feature = show_feature()
-
-  if type == "sender":
-    if selected_feature == "1":
-        multicast_sender_chat(s)
-    elif selected_feature == "2":
-      multicast_sender_files(s)
-  elif type == "receiver":
-    if selected_feature == "1":
-        multicast_receiver_chat(s)
-    elif selected_feature == "2":
-      multicast_receiver_files(s)
-
-def multicast_sender_chat(s):
-  while True:
-    message = input("SENDER: ")
-    s.sendto(message.encode(FORMAT), (MULTICAST_ADDR, MULTICAST_PORT))
-    if message.lower() == 'quit':
-      print("Mengakhiri obrolan...")
-      break
-
-  multicast_pick_feature(s, "sender")
-
-def multicast_receiver_chat(s):
-  while True:
-    print("\nMenunggu pesan masuk...")
-    message, _ = s.recvfrom(SIZE)
-    print("MESSAGE:", message.decode(FORMAT))
-    if message.decode(FORMAT).lower() == 'quit':
-      print("SENDER mengakhiri obrolan!")
-      break
-  
-  multicast_pick_feature(s, "receiver")
-
-def multicast_sender_files(s):
-    file_name = input("\nMasukkan nama file yang akan dikirimkan: ")
-    file_size = os.path.getsize(file_name)
-
-    data = f"{file_name}_{file_size}"
-    s.sendto(data.encode(FORMAT), (MULTICAST_ADDR, MULTICAST_PORT))
-
-    with open(file_name, "rb") as f:
-      bar = tqdm(total=file_size, desc=f"Sending {file_name}", unit="B", unit_scale=True, unit_divisor=1024)
-      bytes_read = 0
-
-      while bytes_read < file_size:
-        data = f.read(SIZE)
-        bytes_read += len(data)
-
-        if not data:
-          break
-
-        s.sendto(data, (MULTICAST_ADDR, MULTICAST_PORT))
-        bar.update(len(data))
-
-    bar.close()
-    print("")
-    multicast_pick_feature(s, "sender")
-
-def multicast_receiver_files(s):
-    data, _ = s.recvfrom(SIZE)
-    item = data.decode(FORMAT).split("_")
-    file_name = item[0]
-    file_size = int(item[1])
-
-    print("[+] Filename and filesize received\n")
-
-    recv_filename = unique_filename(f"assets/received_{file_name}")
-    with open(recv_filename, "wb") as f:
-      bar = tqdm(total=file_size, desc=f"Receiving {file_name} as {recv_filename}", unit="B", unit_scale=True, unit_divisor=1024)
-      bytes_received = 0
-
-      while bytes_received < file_size:
-        data, _ = s.recvfrom(SIZE)
-        bytes_received += len(data)
-
-        if not data:
-          break
-        
-        f.write(data)
-        bar.update(len(data))
-
-    bar.close()
-    print("")
-    multicast_pick_feature(s, "receiver")
-
 def multicast():
-  print("===== User =====")
-  print("1. Receiver")
-  print("2. Sender")
-  print("3. Exit")
+  print("===== Aksi =====")
+  print("1. Kirim Pesan")
+  print("2. Terima Pesan")
+  print("3. Kirim File")
+  print("4. Terima File")
+  print("5. Back (Pilih Metode Komunikasi)")
+  print("6. Exit (Keluar dari Program)")
 
-  selected_user = input("Pilih sebagai user (angka): ")
+  multicast_user_action = input("Pilih aksi yang diinginkan: ")
   print("")
 
-  if selected_user == "1":
-    receiver_socket = multicast_receiver()
-
-    multicast_pick_feature(receiver_socket, "receiver")
-    
-  elif selected_user == "2":
-    sender_socket = multicast_sender()
-    
-    multicast_pick_feature(sender_socket, "sender")
-    
+  if multicast_user_action == "1":
+    socket_connect = multicast_sender_connect()
+    multicast_sender_chat(socket_connect)
+  elif multicast_user_action == "2":
+    socket_connect = multicast_receiver_connect()
+    multicast_receiver_chat(socket_connect)
+  elif multicast_user_action == "3":
+    socket_connect = multicast_sender_connect()
+    multicast_sender_files(socket_connect)
+  elif multicast_user_action == "4":
+    socket_connect = multicast_receiver_connect()
+    multicast_receiver_files(socket_connect)
+  elif multicast_user_action == "5":
+    main()
   else:
+    print("Keluar dari program.")
     exit()
 
 
@@ -501,38 +489,48 @@ def broadcast():
   print("2. Terima Pesan")
   print("3. Kirim File")
   print("4. Terima File")
-  print("5. Exit")
+  print("5. Back (Pilih Metode Komunikasi)")
+  print("6. Exit (Keluar dari Program)")
 
-  user_action = input("Masukkan aksi yang diinginkan: ")
+  broadcast_user_action = input("Pilih aksi yang diinginkan: ")
   print("")
 
-  if user_action == "1":
+  if broadcast_user_action == "1":
     socket_connect = broadcast_server_connect()
     broadcast_chat_send_thread(socket_connect)
-  if user_action == "2":
+  if broadcast_user_action == "2":
     socket_connect = broadcast_client_connect()
     broadcast_chat_receive_thread(socket_connect)
-  elif user_action == "3":
+  elif broadcast_user_action == "3":
     socket_connect = broadcast_server_connect()
     broadcast_file_send_thread(socket_connect)
-  elif user_action == "4":
+  elif broadcast_user_action == "4":
     socket_connect = broadcast_client_connect()
     broadcast_file_receive_thread(socket_connect)
-  elif user_action == "5":
+  elif broadcast_user_action == "5":
+    main()
+  else:
+    print("Keluar dari program.")
     exit()
 
+def main():
+  print("===== Metode Komunikasi =====")
+  print("1. Unicast")
+  print("2. Multicast")
+  print("3. Broadcast")
+  print("4. Exit (Keluar dari Program)")
 
-print("===== Metode Komunikasi =====")
-print("1. Unicast")
-print("2. Multicast")
-print("3. Broadcast")
+  method = input("Pilih metode komunikasi sesuai huruf diatas: ")
+  print("")
 
-method = input("Pilih metode komunikasi sesuai huruf diatas: ")
-print("")
+  if method == "1":
+    unicast()
+  elif method == "2":
+    multicast()
+  elif method == "3":
+    broadcast()
+  else:
+    print("Keluar dari program.")
+    exit()
 
-if method == "1":
-  unicast()
-elif method == "2":
-  multicast()
-elif method == "3":
-  broadcast()
+main()
