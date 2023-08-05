@@ -368,7 +368,7 @@ def broadcast_all_client(message):
   clients_to_remove = []
   for client in CLIENTS:
     try:
-      client.send(message.encode('utf-8'))
+      client.send(message)
     except:
       clients_to_remove.append(client)
   for client in clients_to_remove:
@@ -378,27 +378,69 @@ def broadcast_all_client(message):
 def server_send_message(s):
   message = input("Masukkan pesan Broadcast: ")
   print("")
-  broadcast_all_client(message)
+  broadcast_all_client(message.encode(FORMAT))
   s.close()
   broadcast()
 
-def broadcast_server_connect():
+def server_send_files(s):
+  file_name = input("Masukkan nama file yang akan dikirimkan: ")
+  file_size = os.path.getsize(file_name)
+  print("")
+
+  data = f"{file_name}_{file_size}"
+  broadcast_all_client(data.encode(FORMAT))
+
+  with open(file_name, "rb") as f:
+    bar = tqdm(total=file_size, desc=f"Sending {file_name}", unit="B", unit_scale=True, unit_divisor=1024)
+    bytes_read = 0
+
+    while bytes_read < file_size:
+      data = f.read(SIZE)
+      bytes_read += len(data)
+
+      if not data:
+        break
+
+      broadcast_all_client(data)
+      bar.update(len(data))
+
+  bar.close()
+  print("")
+  s.close()
+  broadcast()
+
+def broadcast_chat_send_thread(s):
   try:
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_socket.bind((BROADCAST_HOST, BROADCAST_PORT))
-
-    server_socket.listen()
-
-    send_thread = threading.Thread(target=server_send_message, args=(server_socket,))
+    send_thread = threading.Thread(target=server_send_message, args=(s,))
     send_thread.start()
 
     while True:
-      conn, _ = server_socket.accept()
+      conn, _ = s.accept()
       CLIENTS.append(conn)
   except ConnectionAbortedError as e:
     if e.errno != 53:
         raise
+
+def broadcast_file_send_thread(s):
+  try:
+    send_thread = threading.Thread(target=server_send_files, args=(s,))
+    send_thread.start()
+
+    while True:
+      conn, _ = s.accept()
+      CLIENTS.append(conn)
+  except ConnectionAbortedError as e:
+    if e.errno != 53:
+        raise
+
+def broadcast_server_connect():
+  server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+  server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+  server_socket.bind((BROADCAST_HOST, BROADCAST_PORT))
+
+  server_socket.listen()
+
+  return server_socket
 
 def client_receive_message(s):
   try:
@@ -412,12 +454,46 @@ def client_receive_message(s):
     broadcast()
     s.close()
 
+def client_receive_files(s):
+  print("Menunggu file masuk..")
+  data, _ = s.recvfrom(SIZE)
+  item = data.decode(FORMAT).split("_")
+  file_name = item[0]
+  file_size = int(item[1])
+
+  recv_filename = unique_filename(f"assets/received_{file_name}")
+  with open(recv_filename, "wb") as f:
+    bar = tqdm(total=file_size, desc=f"Receiving {file_name} as {recv_filename}", unit="B", unit_scale=True, unit_divisor=1024)
+    bytes_received = 0
+
+    while bytes_received < file_size:
+      data, _ = s.recvfrom(SIZE)
+      bytes_received += len(data)
+
+      if not data:
+        break
+      
+      f.write(data)
+      bar.update(len(data))
+
+  bar.close()
+  print("")
+  s.close()
+  broadcast()
+
+def broadcast_chat_receive_thread(s):
+  receive_thread = threading.Thread(target=client_receive_message, args=(s,))
+  receive_thread.start()
+
+def broadcast_file_receive_thread(s):
+  receive_thread = threading.Thread(target=client_receive_files, args=(s,))
+  receive_thread.start()
+
 def broadcast_client_connect():
   client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   client_socket.connect((BROADCAST_HOST, BROADCAST_PORT))
 
-  receive_thread = threading.Thread(target=client_receive_message, args=(client_socket,))
-  receive_thread.start()
+  return client_socket
 
 def broadcast():
   print("===== Aksi =====")
@@ -431,9 +507,17 @@ def broadcast():
   print("")
 
   if user_action == "1":
-    broadcast_server_connect()
+    socket_connect = broadcast_server_connect()
+    broadcast_chat_send_thread(socket_connect)
   if user_action == "2":
-    broadcast_client_connect()
+    socket_connect = broadcast_client_connect()
+    broadcast_chat_receive_thread(socket_connect)
+  elif user_action == "3":
+    socket_connect = broadcast_server_connect()
+    broadcast_file_send_thread(socket_connect)
+  elif user_action == "4":
+    socket_connect = broadcast_client_connect()
+    broadcast_file_receive_thread(socket_connect)
   elif user_action == "5":
     exit()
 
