@@ -329,8 +329,8 @@ def multicast():
 
 
 CLIENTS = []
-SESSION_BCAST_IP = "192.168.1.13"
-SESSION_BCAST_PORT = 10507
+SESSION_BCAST_IP = ""
+SESSION_BCAST_PORT = ""
 RUNNING_THREAD = True
 
 def broadcast_all_clients(message):
@@ -406,9 +406,18 @@ def broadcast_server_connect():
 
   server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-  server_socket.bind((ip, port))
 
-  print(f"IP: {ip}, PORT: {port}\n")
+  while True:
+    try:
+      server_socket.bind((ip, port))
+      print(f"IP: {ip}, PORT: {port}\n")
+      break
+    except OSError as e:
+      if e.errno == 98:
+        print(f"Updated port >> {port}\n")
+        port += 1
+      else:
+        raise
 
   server_socket.listen()
 
