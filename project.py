@@ -363,155 +363,81 @@ def multicast():
 CLIENTS = []
 BROADCAST_HOST = '127.0.0.1'
 BROADCAST_PORT = 12341
-RUNNING_THREADS = True
 
-def show_feature():
-  print("===== Fitur =====")
-  print("1. Chat")
-  print("2. File")
-  print("3. Exit")
+def broadcast_all_client(message):
+  clients_to_remove = []
+  for client in CLIENTS:
+    try:
+      client.send(message.encode('utf-8'))
+    except:
+      clients_to_remove.append(client)
+  for client in clients_to_remove:
+    client.close()
+    CLIENTS.remove(client)
 
-  return input("Masukkan pilihan fitur (angka): ")
-
-def broadcast_client_chat(s):
-  global RUNNING_THREADS
-  RUNNING_THREADS = True
-
-  def receive_messages(client_socket):
-    global RUNNING_THREADS
-
-    while RUNNING_THREADS:
-      try:
-        message = client_socket.recv(1024).decode('utf-8')
-        if message.lower().strip() == 'quit':
-          RUNNING_THREADS = False
-          broadcast_pick_feature(client_socket, "client")
-          break
-
-        print(f"PESAN: {message}\nMasukkan pesan yang ingin dikirim (Ketik pesan dibawah ini): ")
-      except:
-        print("Connection closed by the server")
-        break
-
-  def send_messages(client_socket):
-    global RUNNING_THREADS
-
-    show_prompt = True
-
-    while RUNNING_THREADS:
-      if show_prompt:
-        sys.stdout.write("Masukkan pesan yang ingin dikirim (Ketik pesan dibawah ini):\n")
-        sys.stdout.flush()
-        show_prompt = False
-
-      inputs, _, _ = select.select([sys.stdin], [], [], 0.1)
-      if inputs:
-        message = input()
-        client_socket.send(message.encode('utf-8'))
-        show_prompt = True
-
-  receive_thread = threading.Thread(target=receive_messages, args=(s,))
-  send_thread = threading.Thread(target=send_messages, args=(s,))
-
-  receive_thread.start()
-  send_thread.start()
-
-def broadcast_server_chat(s):
-  global RUNNING_THREADS
-  RUNNING_THREADS = True
-
-  def broadcast_chat(message, client_socket=None):
-    for client in CLIENTS:
-      if client != client_socket:
-        try:
-          client.send(message)
-        except:
-          client.close()
-          CLIENTS.remove(client)
-          
-  def send_from_server():
-    global RUNNING_THREADS
-
-    show_prompt = True
-
-    while RUNNING_THREADS:
-        if show_prompt:
-            sys.stdout.write("Masukkan pesan yang ingin dikirim (Ketik pesan dibawah ini):\n")
-            sys.stdout.flush()
-            show_prompt = False
-
-        inputs, _, _ = select.select([sys.stdin], [], [], 0.1)
-        if inputs:
-            message = input()
-            if message.lower().strip() == 'quit':
-                broadcast_chat('quit'.encode('utf-8'))
-                broadcast_pick_feature(s, "server")
-                break
-            broadcast_chat(message.encode('utf-8'))
-            show_prompt = True
-
-  def server_handle_client(client_socket):
-    global RUNNING_THREADS
-
-    while RUNNING_THREADS:
-      try:
-        message = client_socket.recv(1024).decode('utf-8')
-        if message.lower().strip() == 'quit':
-          RUNNING_THREADS = False
-          broadcast_chat('quit'.encode('utf-8'))
-          broadcast_pick_feature(s, "server")
-          break
-
-        print(f"PESAN: {message}\nMasukkan pesan yang ingin dikirim (Ketik pesan dibawah ini): ")
-        broadcast_chat(message.encode('utf-8'), client_socket)
-      except:
-        client_socket.close()
-        CLIENTS.remove(client_socket)
-        break
-  
-  server_send_thread = threading.Thread(target=send_from_server)
-  server_send_thread.start()
-
-  while True:
-    client_socket, address = s.accept()
-    CLIENTS.append(client_socket)
-    print(f"\nConnected with {address}\n\nMasukkan pesan yang ingin dikirim (Ketik pesan dibawah ini): ")
-    client_thread = threading.Thread(target=server_handle_client, args=(client_socket,))
-    client_thread.start()
-
-def broadcast_pick_feature(s, type):
-  global RUNNING_THREADS
-  RUNNING_THREADS = False
-
-  selected_feature = show_feature()
+def server_send_message(s):
+  message = input("Masukkan pesan Broadcast: ")
   print("")
+  broadcast_all_client(message)
+  s.close()
+  broadcast()
 
-  if type == "client":
-    if selected_feature == "1":
-      broadcast_client_chat(s)
-  elif type == "server":
-    if selected_feature == "1":
-      broadcast_server_chat(s)
+def broadcast_server_connect():
+  try:
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server_socket.bind((BROADCAST_HOST, BROADCAST_PORT))
+
+    server_socket.listen()
+
+    send_thread = threading.Thread(target=server_send_message, args=(server_socket,))
+    send_thread.start()
+
+    while True:
+      conn, _ = server_socket.accept()
+      CLIENTS.append(conn)
+  except ConnectionAbortedError as e:
+    if e.errno != 53:
+        raise
+
+def client_receive_message(s):
+  try:
+    print("Menunggu pesan masuk..")
+    message = s.recv(1024).decode('utf-8')
+    print("\nPESAN BROADCAST >>", message)
+    print("")
+  except:
+    pass
+  finally:
+    broadcast()
+    s.close()
 
 def broadcast_client_connect():
   client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   client_socket.connect((BROADCAST_HOST, BROADCAST_PORT))
 
-  broadcast_pick_feature(client_socket, "client")
+  receive_thread = threading.Thread(target=client_receive_message, args=(client_socket,))
+  receive_thread.start()
 
 def broadcast():
-  server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-  try:
-    server_socket.bind((BROADCAST_HOST, BROADCAST_PORT))
-  except OSError as e:
-    if e.errno == 48:
-      return broadcast_client_connect()
-  
-  server_socket.listen()
-  print(f"Server listening on {BROADCAST_HOST}:{BROADCAST_PORT}\n")
+  print("===== Aksi =====")
+  print("1. Kirim Pesan")
+  print("2. Terima Pesan")
+  print("3. Kirim File")
+  print("4. Terima File")
+  print("5. Exit")
 
-  broadcast_pick_feature(server_socket, "server")
-  
+  user_action = input("Masukkan aksi yang diinginkan: ")
+  print("")
+
+  if user_action == "1":
+    broadcast_server_connect()
+  if user_action == "2":
+    broadcast_client_connect()
+  elif user_action == "5":
+    exit()
+
+
 print("===== Metode Komunikasi =====")
 print("1. Unicast")
 print("2. Multicast")
