@@ -1,0 +1,13 @@
+docker run -d --name unicast-client2 --network progjar -v ~/Documents/itts/PEMROGRAMAN_JARINGAN/PRAKTIKUM/FINAL_PROJECT/UNICAST:/prj progjar-unicast sleep infinity
+
+docker run -d --name multicast-sender --network progjar -v /Users/irvansn/Documents/itts/PEMROGRAMAN_JARINGAN/PRAKTIKUM/FINAL_PROJECT:/prj progjar-multicast sleep infinity
+
+docker run -d --name multicast-receiver1 --network progjar -v /Users/irvansn/Documents/itts/PEMROGRAMAN_JARINGAN/PRAKTIKUM/FINAL_PROJECT:/prj progjar-multicast sleep infinity
+
+docker run -d --name multicast-receiver2 --network progjar -v /Users/irvansn/Documents/itts/PEMROGRAMAN_JARINGAN/PRAKTIKUM/FINAL_PROJECT:/prj progjar-multicast sleep infinity
+
+docker run -d --name multicast-receiver3 --network progjar -v /Users/irvansn/Documents/itts/PEMROGRAMAN_JARINGAN/PRAKTIKUM/FINAL_PROJECT:/prj progjar-multicast sleep infinity
+
+docker run -d --name multicast-receiver4 --network progjar -v /Users/irvansn/Documents/itts/PEMROGRAMAN_JARINGAN/PRAKTIKUM/FINAL_PROJECT:/prj progjar-multicast sleep infinity
+
+docker run -d --name multicast-receiver5 --network progjar -v /Users/irvansn/Documents/itts/PEMROGRAMAN_JARINGAN/PRAKTIKUM/FINAL_PROJECT:/prj progjar-multicast sleep infinity
