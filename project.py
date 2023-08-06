@@ -389,8 +389,12 @@ def accept_connections(s):
 
   try:
     while RUNNING_THREAD:
-      conn, _ = s.accept()
-      CLIENTS.append(conn)
+      try:
+        conn, _ = s.accept()
+        CLIENTS.append(conn)
+      except OSError as e:
+        if e.errno != 10038:
+          raise
 
   except ConnectionAbortedError as e:
     if e.errno != 53:
@@ -404,20 +408,19 @@ def broadcast_server_connect():
   ip = socket.gethostbyname(socket.gethostname())
   port = 10507
 
-  server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-  server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
   while True:
     try:
+      server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+      server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
       server_socket.bind((ip, port))
-      print(f"IP: {ip}, PORT: {port}\n")
       break
     except OSError as e:
       if e.errno == 98:
-        print(f"Updated port >> {port}\n")
         port += 1
       else:
-        raise
+        raise 
+
+  print(f"IP: {ip}, PORT: {port}\n")
 
   server_socket.listen()
 
@@ -425,6 +428,7 @@ def broadcast_server_connect():
   accept_thread.start()
 
   return server_socket
+
 
 def client_receive_message(s):
   print("Menunggu pesan masuk..")
