@@ -33,87 +33,42 @@ SESSION_UCAST_IP = ""
 SESSION_UCAST_PORT = ""
 
 def unicast_server_chat(s):
-  while True:
-    message = input("Ketikkan pesanmu: ")
-    s.send(message.encode(FORMAT))
+  message = input("Ketikkan pesanmu: ")
+  print("")
+  s.send(message.encode(FORMAT))
 
-    if message.lower() == 'quit':
-      print("\nMengakhiri obrolan!\n")
-      unicast_feature_handling(s, "server")
-      break
-
-    response = s.recv(SIZE).decode(FORMAT)
-    print("PESAN:", response)
-
-    if response.lower() == 'quit':
-      print("\nMengakhiri obrolan\n")
-      unicast_feature_handling(s, "server")
-      break
+  s.close()
+  unicast()
 
 def unicast_server_files(s):
-  while True:
-    file_name = input("Masukkan nama file yang akan dikirimkan: ")
+  file_name = input("Masukkan nama file yang akan dikirimkan: ")
+  file_size = os.path.getsize(file_name)
 
-    if "quit" in file_name:
-      s.send(file_name.encode(FORMAT))
-      print("\nMengakhiri obrolan!\n")
-      unicast_feature_handling(s, "server")
-      break
+  data = f"{file_name}_{file_size}"
+  s.send(data.encode(FORMAT))
+  print("")
 
-    file_size = os.path.getsize(file_name)
+  with open(file_name, "rb") as f:
+    bar = tqdm(total=file_size, desc=f"Sending {file_name}", unit="B", unit_scale=True, unit_divisor=SIZE)
+    bytes_read = 0
 
-    data = f"{file_name}_{file_size}"
-    s.send(data.encode(FORMAT))
-    print("")
+    while bytes_read < file_size:
+      data = f.read(SIZE)
+      bytes_read += len(data)
 
-    with open(file_name, "rb") as f:
-      bar = tqdm(total=file_size, desc=f"Sending {file_name}", unit="B", unit_scale=True, unit_divisor=SIZE)
-      bytes_read = 0
+      if not data:
+        break
 
-      while bytes_read < file_size:
-        data = f.read(SIZE)
-        bytes_read += len(data)
+      s.send(data)
 
-        if not data:
-          break
-
-        s.send(data)
-
-        bar.update(len(data))
-      
-    bar.close()
-    print("")
-
-    print("Menunggu file masuk..\n")
-    data = s.recv(SIZE).decode(FORMAT)
-
-    if data == "quit":
-      print("\nMengakhiri obrolan!\n")
-      unicast_feature_handling(s, "server")
-      break
-
-    item = data.split("_")
-    file_name = item[0]
-    file_size = int(item[1])
-
-    recv_filename = unique_filename(f"assets/received_{file_name}")
-    with open(recv_filename, "wb") as f:
-      bar = tqdm(total=file_size, desc=f"Receiving {file_name} as {recv_filename}", unit="B", unit_scale=True, unit_divisor=SIZE)
-      bytes_received = 0
-
-      while bytes_received < file_size:
-        data = s.recv(SIZE)
-        bytes_received += len(data)
-
-        if not data:
-          break
-        
-        f.write(data)
-
-        bar.update(len(data))
+      msg = s.recv(SIZE).decode(FORMAT)
+      bar.update(len(data))
     
-    bar.close()
-    print("")
+  bar.close()
+  print("")
+
+  s.close()
+  unicast()
 
 def unicast_server_connect():
   s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -135,87 +90,43 @@ def unicast_server_connect():
   return server_socket
 
 def unicast_client_chat(s):
-  while True:
-    message = s.recv(SIZE).decode(FORMAT)
-    print("PESAN:", message)
+  print("Menunggu pesan dari pengirim..\n")
+  message = s.recv(SIZE).decode(FORMAT)
+  print("PESAN:", message)
+  print("")
 
-    if message.lower() == 'quit':
-      print("\nMengakhiri obrolan!\n")
-      unicast_feature_handling(s, "client")
-      break
-    
-    reply = input("Masukkan pesan: ")
-    s.send(reply.encode(FORMAT))
-    if reply.lower() == 'quit':
-      print("\nMengakhiri obrolan.\n")
-      unicast_feature_handling(s, "client")
-      break
+  s.close()
+  unicast()
 
 def unicast_client_files(s):
-  while True:
-    print("Menunggu file masuk..\n")
-    data = s.recv(SIZE).decode(FORMAT)
+  print("Menunggu file masuk..\n")
+  data = s.recv(SIZE).decode(FORMAT)
+  item = data.split("_")
+  file_name = item[0]
+  file_size = int(item[1])
 
-    if data == "quit":
-      print("\nMengakhiri obrolan!\n")
-      unicast_feature_handling(s, "client")
-      break
+  recv_filename = unique_filename(f"assets/received_{file_name}")
+  with open(recv_filename, "wb") as f:
+    bar = tqdm(total=file_size, desc=f"Receiving {file_name} as {recv_filename}", unit="B", unit_scale=True, unit_divisor=SIZE)
+    bytes_received = 0
 
-    item = data.split("_")
-    file_name = item[0]
-    file_size = int(item[1])
+    while bytes_received < file_size:
+      data = s.recv(SIZE)
+      bytes_received += len(data)
 
-    recv_filename = unique_filename(f"assets/received_{file_name}")
-    with open(recv_filename, "wb") as f:
-      bar = tqdm(total=file_size, desc=f"Receiving {file_name} as {recv_filename}", unit="B", unit_scale=True, unit_divisor=SIZE)
-      bytes_received = 0
-
-      while bytes_received < file_size:
-        data = s.recv(SIZE)
-        bytes_received += len(data)
-
-        if not data:
-          break
-        
-        f.write(data)
-
-        bar.update(len(data))
-    
-    bar.close()
-    print("")
-
-    file_name = input("Masukkan nama file yang akan dikirimkan: ")
-
-    if file_name == "quit":
-      s.send(file_name.encode(FORMAT))
-      print("\nMengakhiri obrolan!\n")
-      unicast_feature_handling(s, "client")
-      break
-
-    file_size = os.path.getsize(file_name)
-
-    data = f"{file_name}_{file_size}"
-    s.send(data.encode(FORMAT))
-    print("")
-
-    with open(file_name, "rb") as f:
-      bar = tqdm(total=file_size, desc=f"Sending {file_name}", unit="B", unit_scale=True, unit_divisor=SIZE)
-      bytes_read = 0
-
-      while bytes_read < file_size:
-        data = f.read(SIZE)
-        bytes_read += len(data)
-
-        if not data:
-          break
-
-        s.send(data)
-
-        bar.update(len(data))
+      if not data:
+        break
       
-    bar.close()
-    print("")
+      f.write(data)
 
+      s.send("Data received.".encode(FORMAT))
+      bar.update(len(data))
+  
+  bar.close()
+  print("")
+
+  s.close()
+  unicast()
 
 def unicast_client_connect():
   global SESSION_UCAST_IP
@@ -241,60 +152,27 @@ def unicast_client_connect():
   print("")
   return s
 
-def unicast_feature_handling(s, user):
-  if user == "server":
-    print("===== Fitur =====")
-    print("1. Chat")
-    print("2. File")
-    print("3. Back (Pilih User)")
-
-    selected_feature = input("Masukkan pilihan fitur: ")
-    s.send(selected_feature.encode(FORMAT))
-    print("")
-
-    if selected_feature == "1":
-      unicast_server_chat(s)
-    elif selected_feature == "2":
-      unicast_server_files(s)
-    else:
-      s.close()
-      unicast()
-  elif user == "client":
-    print("Menunggu server memilih fitur!\n")
-    selected_feature = s.recv(SIZE).decode(FORMAT)
-    
-    if selected_feature == "1":
-      print("Server memilih fitur chat!\n")
-      unicast_client_chat(s)
-    elif selected_feature == "2":
-      print("Server memilih fitur file!\n")
-      unicast_client_files(s)
-    else:
-      s.close()
-      unicast()
-
 def unicast():
-  print("===== User =====")
-  print("1. Server")
-  print("2. Client")
-  print("3. Back (Pilih Metode Komunikasi)")
-  print("4. Exit (Keluar dari Program)")
-
-  unicast_selected_user = input("Masukkan pilihan fitur: ")
+  unicast_user_action = input_pick_action()
   print("")
 
-  if unicast_selected_user == "1":
+  if unicast_user_action == "1":
     socket_connect = unicast_server_connect()
-    unicast_feature_handling(socket_connect, "server")
-  elif unicast_selected_user == "2":
+    unicast_server_chat(socket_connect)
+  elif unicast_user_action == "2":
     socket_connect = unicast_client_connect()
-    unicast_feature_handling(socket_connect, "client")
-  elif unicast_selected_user == "3":
+    unicast_client_chat(socket_connect)
+  elif unicast_user_action == "3":
+    socket_connect = unicast_server_connect()
+    unicast_server_files(socket_connect)
+  elif unicast_user_action == "4":
+    socket_connect = unicast_client_connect()
+    unicast_client_files(socket_connect)
+  elif unicast_user_action == "5":
     main()
   else:
     print("Keluar dari program.")
     exit()
-
 
 SESSION_MCAST_SEND_TO_GROUP= ""
 SESSION_MCAST_SEND_TO_PORT= ""
@@ -551,6 +429,7 @@ def broadcast_server_connect():
 
   return server_socket
 
+
 def client_receive_message(s):
   print("Menunggu pesan masuk..")
   message = s.recv(SIZE).decode(FORMAT)
@@ -644,7 +523,6 @@ def broadcast():
   else:
     print("Keluar dari program.")
     exit()
-
 
 def main():
   print("===== Metode Komunikasi =====")
