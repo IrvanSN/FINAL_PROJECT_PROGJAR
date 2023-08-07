@@ -1,3 +1,5 @@
+# بِسْــــــــــــــــــمِ اللهِ الرَّحْمَنِ الرَّحِيْمِ
+
 import socket
 import os
 import threading
