@@ -216,7 +216,6 @@ def unicast_client_files(s):
     bar.close()
     print("")
 
-
 def unicast_client_connect():
   global SESSION_UCAST_IP
   global SESSION_UCAST_PORT
@@ -302,77 +301,92 @@ SESSION_MCAST_RECEIVER_GROUP = ""
 SESSION_MCAST_RECEIVER_PORT = ""
 
 def multicast_sender_chat(s, group_ip, group_port):
-  message = input("Masukkan pesan: ")
-  print("")
-  s.sendto(message.encode(FORMAT), (group_ip, group_port))
+  while True:
+    message = input("Masukkan pesan: ")
+    print("")
+    s.sendto(message.encode(FORMAT), (group_ip, group_port))
 
-  s.close()
-  multicast()
+    if message == "quit":
+      s.close()
+      multicast()
+      break
 
 def multicast_receiver_chat(s):
-  print("Menunggu pesan masuk...\n")
-  message, _ = s.recvfrom(SIZE)
-  print("PESAN:", message.decode(FORMAT))
-  print("")
+  while True:
+    print("Menunggu pesan masuk...\n")
+    message, _ = s.recvfrom(SIZE)
+    print("PESAN:", message.decode(FORMAT))
+    print("")
 
-  s.close()
-  multicast()
+    if message.decode(FORMAT) == "quit":
+      s.close()
+      multicast()
+      break
 
 def multicast_sender_files(s, group_ip, group_port):
-  file_name = input("Masukkan nama file yang akan dikirimkan: ")
-  file_size = os.path.getsize(file_name)
-  print("")
+  while True:
+    file_name = input("Masukkan nama file yang akan dikirimkan: ")
 
-  data = f"{file_name}_{file_size}"
-  s.sendto(data.encode(FORMAT), (group_ip, group_port))
+    if file_name == "quit":
+      s.sendto(file_name.encode(FORMAT), (group_ip, group_port))
+      s.close()
+      multicast()
+      break
 
-  with open(file_name, "rb") as f:
-    bar = tqdm(total=file_size, desc=f"Sending {file_name}", unit="B", unit_scale=True, unit_divisor=SIZE)
-    bytes_read = 0
+    file_size = os.path.getsize(file_name)
+    print("")
 
-    while bytes_read < file_size:
-      data = f.read(SIZE)
-      bytes_read += len(data)
+    data = f"{file_name}_{file_size}"
+    s.sendto(data.encode(FORMAT), (group_ip, group_port))
 
-      if not data:
-        break
+    with open(file_name, "rb") as f:
+      bar = tqdm(total=file_size, desc=f"Sending {file_name}", unit="B", unit_scale=True, unit_divisor=SIZE)
+      bytes_read = 0
 
-      s.sendto(data, (group_ip, group_port))
-      bar.update(len(data))
+      while bytes_read < file_size:
+        data = f.read(SIZE)
+        bytes_read += len(data)
 
-  bar.close()
-  print("")
+        if not data:
+          break
 
-  s.close()
-  multicast()
+        s.sendto(data, (group_ip, group_port))
+        bar.update(len(data))
+
+    bar.close()
+    print("")
 
 def multicast_receiver_files(s):
-  print("Menunggu file masuk..\n")
-  data, _ = s.recvfrom(SIZE)
-  item = data.decode(FORMAT).split("_")
-  file_name = item[0]
-  file_size = int(item[1])
+  while True:
+    print("Menunggu file masuk..\n")
+    data, _ = s.recvfrom(SIZE)
 
-  recv_filename = unique_filename(f"assets/received_{file_name}")
-  with open(recv_filename, "wb") as f:
-    bar = tqdm(total=file_size, desc=f"Receiving {file_name} as {recv_filename}", unit="B", unit_scale=True, unit_divisor=SIZE)
-    bytes_received = 0
+    if data.decode(FORMAT) == "quit":
+      s.close()
+      multicast()
+      break
+    
+    item = data.decode(FORMAT).split("_")
+    file_name = item[0]
+    file_size = int(item[1])
 
-    while bytes_received < file_size:
-      data, _ = s.recvfrom(SIZE)
-      bytes_received += len(data)
+    recv_filename = unique_filename(f"assets/received_{file_name}")
+    with open(recv_filename, "wb") as f:
+      bar = tqdm(total=file_size, desc=f"Receiving {file_name} as {recv_filename}", unit="B", unit_scale=True, unit_divisor=SIZE)
+      bytes_received = 0
 
-      if not data:
-        break
-      
-      f.write(data)
-      bar.update(len(data))
+      while bytes_received < file_size:
+        data, _ = s.recvfrom(SIZE)
+        bytes_received += len(data)
 
-  bar.close()
-  print("")
+        if not data:
+          break
+        
+        f.write(data)
+        bar.update(len(data))
 
-  s.close()
-  multicast()
+    bar.close()
+    print("")
 
 def multicast_sender_connect():
   global SESSION_MCAST_SEND_TO_GROUP
