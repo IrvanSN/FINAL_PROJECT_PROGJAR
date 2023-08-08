@@ -325,11 +325,12 @@ def multicast_receiver_chat(s):
 
 def multicast_sender_files(s, group_ip, group_port):
   file_name = input("Masukkan nama file yang akan dikirimkan: ")
+
   file_size = os.path.getsize(file_name)
-  print("")
 
   data = f"{file_name}_{file_size}"
   s.sendto(data.encode(FORMAT), (group_ip, group_port))
+  print("")
 
   with open(file_name, "rb") as f:
     bar = tqdm(total=file_size, desc=f"Sending {file_name}", unit="B", unit_scale=True, unit_divisor=SIZE)
@@ -343,8 +344,10 @@ def multicast_sender_files(s, group_ip, group_port):
         break
 
       s.sendto(data, (group_ip, group_port))
-      bar.update(len(data))
+      # msg = s.recv(SIZE).decode(FORMAT)
 
+      bar.update(len(data))
+    
   bar.close()
   print("")
 
