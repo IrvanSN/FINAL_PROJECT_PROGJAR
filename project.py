@@ -80,6 +80,7 @@ def unicast_server_files(s):
           break
 
         s.send(data)
+        msg = s.recv(SIZE).decode(FORMAT)
 
         bar.update(len(data))
       
@@ -111,6 +112,7 @@ def unicast_server_files(s):
           break
         
         f.write(data)
+        s.send("Data received.".encode(FORMAT))
 
         bar.update(len(data))
     
@@ -120,7 +122,7 @@ def unicast_server_files(s):
 def unicast_server_connect():
   s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-  ip = socket.gethostbyname(socket.gethostname())
+  ip = input("Masukkan ip server: ")
   port = 10507
 
   s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -180,6 +182,7 @@ def unicast_client_files(s):
           break
         
         f.write(data)
+        s.send("Data received.".encode(FORMAT))
 
         bar.update(len(data))
     
@@ -212,12 +215,12 @@ def unicast_client_files(s):
           break
 
         s.send(data)
+        msg = s.recv(SIZE).decode(FORMAT)
 
         bar.update(len(data))
       
     bar.close()
     print("")
-
 
 def unicast_client_connect():
   global SESSION_UCAST_IP
@@ -529,7 +532,7 @@ def broadcast_server_connect():
 
   RUNNING_THREAD = True
 
-  ip = socket.gethostbyname(socket.gethostname())
+  ip = input("Masukkan ip server: ")
   port = 10507
 
   while True:
